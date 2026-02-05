@@ -14,7 +14,7 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install dependencies
-        run: pip install pandas fredapi sqlite3
+        run: pip install pandas fredapi
       - name: Run update
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
