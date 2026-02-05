@@ -2,14 +2,14 @@ name: Daily Energy Data Update
 
 on:
   schedule:
-    - cron: '0 9 * * *'  # Daily at 09:00 UTC
-  workflow_dispatch:  # Allow manual trigger
+    - cron: '0 9 * * *'
+  workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Required for pushing changes
+      contents: write
     
     steps:
       - name: Checkout repository
@@ -28,7 +28,8 @@ jobs:
       - name: Run update script
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-        run: python src/update_data.py
+        # Вказуємо повний шлях до скрипта всередині підпапки
+        run: python energy-analytics-lab/src/update_data.py
       
       - name: Check for changes
         id: check_changes
@@ -44,7 +45,8 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add energy_data.db
+          # Додаємо саме той файл, який лежить у підпапці
+          git add energy-analytics-lab/energy_data.db
           git commit -m "🔄 Auto-update gas prices - $(date +'%Y-%m-%d %H:%M UTC')"
           git push
       
