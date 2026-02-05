@@ -1,0 +1,28 @@
+name: Daily Energy Data Update
+on:
+  schedule:
+    - cron: '0 9 * * *' # Щодня о 09:00 UTC
+  workflow_dispatch: # Дозволяє запустити вручну
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install pandas fredapi sqlite3
+      - name: Run update
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python src/update_data.py
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add energy_data.db
+          git commit -m "Auto-update gas prices" || exit 0
+          git push
