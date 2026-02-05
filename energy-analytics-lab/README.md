@@ -1,4 +1,5 @@
 # 📊 Natural Gas Price Forecasting Dashboard
+# 🚀 Live Demo: [natural-gas-analytics-for-5-years.onrender.com](https://natural-gas-analytics-for-5-years.onrender.com/)
 
 An end-to-end Machine Learning application that predicts Natural Gas prices for **1-day** and **7-day** horizons. This project features a professional dashboard built with **Streamlit** and a predictive engine powered by **Scikit-learn**.
 
