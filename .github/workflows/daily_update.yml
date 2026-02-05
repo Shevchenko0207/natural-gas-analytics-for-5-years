@@ -18,7 +18,7 @@ jobs:
       - name: Run update
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-        run: python src/update_data.py
+        run: python energy-analytics-lab/src/update_data.py
       - name: Commit and push changes
         run: |
           git config --local user.email "action@github.com"
