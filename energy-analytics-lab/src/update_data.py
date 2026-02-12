@@ -30,31 +30,36 @@ def update_database():
         df.columns = ['observation_date', 'current_price'] 
         df = df.dropna()
         
-        # Розраховуємо всі фічі, які може захотіти app.py
-        # Лаги
-        for i in [1, 2, 3, 7]:
+        # 1. Часові ознаки (виправляємо 'month_num')
+        df['observation_date'] = pd.to_datetime(df['observation_date'])
+        df['month_num'] = df['observation_date'].dt.month
+        df['day_of_week'] = df['observation_date'].dt.dayofweek
+        df['year'] = df['observation_date'].dt.year
+        
+        # 2. Лаги (для моделі)
+        for i in [1, 2, 3, 7, 14]:
             df[f'lag_{i}'] = df['current_price'].shift(i)
         
-        # Ковзні середні (виправляємо помилку 'moving_avg_30')
+        # 3. Ковзні середні (виправляємо 'moving_avg_30')
         df['moving_avg_7'] = df['current_price'].transform(lambda x: x.rolling(window=7).mean())
         df['moving_avg_30'] = df['current_price'].transform(lambda x: x.rolling(window=30).mean())
         
-        # Додаткові фічі (про всяк випадок)
+        # Додаткові технічні назви, які можуть бути в app.py
         df['rolling_mean_7'] = df['moving_avg_7']
+        df['rolling_mean_30'] = df['moving_avg_30']
         
-        # Видаляємо порожні рядки після зсувів і форматуємо дату
+        # Видаляємо NaN та форматуємо дату назад у рядок для SQLite
         df = df.dropna()
-        df['observation_date'] = pd.to_datetime(df['observation_date']).dt.strftime('%Y-%m-%d')
+        df['observation_date'] = df['observation_date'].dt.strftime('%Y-%m-%d')
         
         conn = sqlite3.connect(DB_PATH)
-        # Записуємо в цільову таблицю
         df.to_sql('gas_prices_ml_7d', conn, if_exists='replace', index=False)
         
         last_date = df['observation_date'].iloc[-1]
         last_price = df['current_price'].iloc[-1]
         
         conn.close()
-        print(f"Success! Database updated with all features. Latest: ${last_price} for {last_date}")
+        print(f"Success! Database updated with full ML features. Latest: ${last_price}")
 
     except Exception as e:
         print(f"An error occurred: {e}")
