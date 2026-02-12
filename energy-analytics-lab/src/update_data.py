@@ -40,7 +40,7 @@ def update_database():
         
         # ПРИМУСОВИЙ ПЕРЕЗАПИС: 
         # Ми завантажуємо всі нові дані, які дає FRED, і оновлюємо базу
-        df.to_sql('gas_prices', conn, if_exists='replace', index=False)
+        df.to_sql('gas_prices_ml_7d', conn, if_exists='replace', index=False)
         
         # Отримуємо останню ціну для логів
         last_date = df['date'].iloc[-1]
