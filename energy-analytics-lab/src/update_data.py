@@ -29,10 +29,10 @@ def update_database():
             print("No data received from FRED")
             return
 
-        # Форматуємо дані під запит додатка
+       # Форматуємо дані під точні вимоги додатка
         df = data.reset_index()
-        # Змінюємо 'date' на 'observation_date', а 'price' на 'value' (або як у вас у SELECT)
-        df.columns = ['observation_date', 'value'] 
+        # Тут ми даємо назви, які очікує ваш app.py
+        df.columns = ['observation_date', 'current_price'] 
         df = df.dropna()
         df['observation_date'] = pd.to_datetime(df['observation_date']).dt.strftime('%Y-%m-%d')
         
