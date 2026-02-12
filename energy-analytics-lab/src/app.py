@@ -8,16 +8,12 @@ from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 import os
 
-# 1. НАЛАШТУВАННЯ ШЛЯХІВ (Виправляємо проблему "двох баз")
-# Отримуємо шлях до папки, де лежить цей файл (src)
+# 1. НАЛАШТУВАННЯ ШЛЯХІВ
 CURRENT_DIR = Path(__file__).parent.resolve()
 
-# Піднімаємося на рівень вище до папки проєкту (energy-analytics-lab)
-PROJECT_ROOT = CURRENT_DIR.parent
-
-# Точні шляхи до ресурсів, які оновлює GitHub Actions
-DB_PATH = PROJECT_ROOT / 'energy_data.db'
-MODEL_DIR = PROJECT_ROOT / 'models'
+# Оскільки app.py в папці src, а база поруч із папкою src
+DB_PATH = CURRENT_DIR.parent / 'energy_data.db'
+MODEL_DIR = CURRENT_DIR.parent / 'models'
 
 st.set_page_config(page_title="Energy Analytics Lab", layout="wide")
 
