@@ -29,25 +29,39 @@ def update_database():
             print("No data received from FRED")
             return
 
-       # Форматуємо дані під точні вимоги додатка
+        # Форматуємо основні дані
         df = data.reset_index()
-        # Тут ми даємо назви, які очікує ваш app.py
         df.columns = ['observation_date', 'current_price'] 
         df = df.dropna()
+        
+        # Створюємо лаги та фічі, які очікує модель в app.py
+        # lag_1 - ціна вчора, lag_7 - ціна тиждень тому тощо.
+        df['lag_1'] = df['current_price'].shift(1)
+        df['lag_2'] = df['current_price'].shift(2)
+        df['lag_3'] = df['current_price'].shift(3)
+        df['lag_7'] = df['current_price'].shift(7)
+        
+        # Розраховуємо ковзне середнє (якщо модель його використовує)
+        df['rolling_mean_7'] = df['current_price'].transform(lambda x: x.rolling(window=7).mean())
+        
+        # Чистимо NaN, які з'явилися після створення лагів
+        df = df.dropna()
+        
+        # Форматуємо дату після розрахунків
         df['observation_date'] = pd.to_datetime(df['observation_date']).dt.strftime('%Y-%m-%d')
         
         # Підключаємось до бази
         conn = sqlite3.connect(DB_PATH)
         
-        # Записуємо в правильну таблицю
+        # Записуємо в таблицю з повною структурою
         df.to_sql('gas_prices_ml_7d', conn, if_exists='replace', index=False)
         
-        # Отримуємо останню ціну для логів
-        last_date = df['date'].iloc[-1]
-        last_price = df['price'].iloc[-1]
+        # Отримуємо дані для логів (виправлено назви колонок)
+        last_date = df['observation_date'].iloc[-1]
+        last_price = df['current_price'].iloc[-1]
         
         conn.close()
-        print(f"Success! Database updated. Latest price: ${last_price} for {last_date}")
+        print(f"Success! Database updated with ML features. Latest: ${last_price} for {last_date}")
 
     except Exception as e:
         print(f"An error occurred: {e}")
