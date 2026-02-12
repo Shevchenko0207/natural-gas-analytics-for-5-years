@@ -1,4 +1,5 @@
 name: Daily Energy Data Update
+
 on:
   schedule:
     - cron: '0 9 * * *' # Щодня о 09:00 UTC
@@ -9,21 +10,57 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Це дає боту право пушити зміни
+    
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      
       - name: Install dependencies
         run: pip install pandas fredapi
+      
       - name: Run update
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: python energy-analytics-lab/src/update_data.py
+      
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if [[ -n $(git status -s) ]]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+            echo "✅ Нові дані отримані!"
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Немає нових даних для оновлення"
+          fi
+      
       - name: Commit and push changes
+        if: steps.check_changes.outputs.changes == 'true'
         run: |
           git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add energy-analytics-lab/energy_data.db
+          git commit -m "🔄 Auto-update gas prices - $(date +'%Y-%m-%d %H:%M UTC')"
+          git push
+      
+      - name: Trigger Render Deploy
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          echo "🚀 Запуск деплою на Render..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}")
+          if [ $response -eq 200 ] || [ $response -eq 201 ]; then
+            echo "✅ Render деплой успішно запущено!"
+          else
+            echo "⚠️ Render повернув статус код: $response"
+          fi
+      
+      - name: No changes detected
+        if: steps.check_changes.outputs.changes == 'false'
+        run: echo "ℹ️ Дані актуальні, оновлення не потрібне"
           git config --local user.name "GitHub Action"
           git add energy-analytics-lab/energy_data.db
           git commit -m "Auto-update gas prices" || exit 0
