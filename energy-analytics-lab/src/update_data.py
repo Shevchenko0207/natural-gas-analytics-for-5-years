@@ -29,17 +29,17 @@ def update_database():
             print("No data received from FRED")
             return
 
-        # Форматуємо дані
+        # Форматуємо дані під запит додатка
         df = data.reset_index()
-        df.columns = ['date', 'price']
+        # Змінюємо 'date' на 'observation_date', а 'price' на 'value' (або як у вас у SELECT)
+        df.columns = ['observation_date', 'value'] 
         df = df.dropna()
-        df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
+        df['observation_date'] = pd.to_datetime(df['observation_date']).dt.strftime('%Y-%m-%d')
         
         # Підключаємось до бази
         conn = sqlite3.connect(DB_PATH)
         
-        # ПРИМУСОВИЙ ПЕРЕЗАПИС: 
-        # Ми завантажуємо всі нові дані, які дає FRED, і оновлюємо базу
+        # Записуємо в правильну таблицю
         df.to_sql('gas_prices_ml_7d', conn, if_exists='replace', index=False)
         
         # Отримуємо останню ціну для логів
