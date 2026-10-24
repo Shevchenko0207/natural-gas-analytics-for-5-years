@@ -10,23 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Це дає боту право пушити зміни
-      
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: pip install pandas fredapi
-      
+
       - name: Run update
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: python energy-analytics-lab/src/update_data.py
-      
+
       - name: Check for changes
         id: check_changes
         run: |
@@ -37,7 +37,7 @@ jobs:
             echo "changes=false" >> $GITHUB_OUTPUT
             echo "ℹ️ Немає нових даних для оновлення"
           fi
-      
+
       - name: Commit and push changes
         if: steps.check_changes.outputs.changes == 'true'
         run: |
@@ -46,7 +46,7 @@ jobs:
           git add energy-analytics-lab/energy_data.db
           git commit -m "🔄 Auto-update gas prices - $(date +'%Y-%m-%d %H:%M UTC')"
           git push
-      
+
       - name: Trigger Render Deploy
         if: steps.check_changes.outputs.changes == 'true'
         run: |
@@ -57,7 +57,7 @@ jobs:
           else
             echo "⚠️ Render повернув статус код: $response"
           fi
-      
+
       - name: No changes detected
         if: steps.check_changes.outputs.changes == 'false'
         run: echo "ℹ️ Дані актуальні, оновлення не потрібне"
