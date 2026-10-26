@@ -2,12 +2,15 @@ name: Daily Energy Data Update
 
 on:
   schedule:
-    - cron: "0 0 * * *"
-  workflow_dispatch:
+    - cron: "0 9 * * *" # Щодня о 09:00 UTC
+  workflow_dispatch: # Дозволяє запустити вручну
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Це дає боту право пушити зміни
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -18,10 +21,44 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        run: pip install pandas fredapi
 
-      - name: Run update script
+      - name: Run update
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python energy-analytics-lab/src/update_data.py
+
+      - name: Check for changes
+        id: check_changes
         run: |
-          python main.py  # змініть на ім'я вашого скрипта, якщо воно інше
+          if [[ -n $(git status -s) ]]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+            echo "✅ Нові дані отримані!"
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Немає нових даних для оновлення"
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add energy-analytics-lab/energy_data.db
+          git commit -m "🔄 Auto-update gas prices - $(date +'%Y-%m-%d %H:%M UTC')"
+          git push
+
+      - name: Trigger Render Deploy
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          echo "🚀 Запуск деплою на Render..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}")
+          if [ $response -eq 200 ] || [ $response -eq 201 ]; then
+            echo "✅ Render деплой успішно запущено!"
+          else
+            echo "⚠️ Render повернув статус код: $response"
+          fi
+
+      - name: No changes detected
+        if: steps.check_changes.outputs.changes == 'false'
+        run: echo "ℹ️ Дані актуальні, оновлення не потрібне"
