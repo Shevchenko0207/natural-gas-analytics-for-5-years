@@ -53,10 +53,11 @@ jobs:
         run: |
           echo "🚀 Запуск деплою на Render..."
           response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}")
-          if [ $response -eq 200 ] || [ $response -eq 201 ]; then
-            echo "✅ Render деплой успішно запущено!"
+          if [ "$response" -ge 200 ] && [ "$response" -lt 300 ]; then
+            echo "✅ Render деплой запущено (HTTP $response)"
           else
             echo "⚠️ Render повернув статус код: $response"
+            exit 1
           fi
 
       - name: No changes detected
