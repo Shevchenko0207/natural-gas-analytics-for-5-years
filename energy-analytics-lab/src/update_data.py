@@ -10,11 +10,21 @@ TABLE = 'gas_prices_ml_7d'  # саме цю таблицю читає app.py
 CHECK_ROWS = 15             # скільки останніх рядків звіряємо перед записом
 TOL = 1e-3
 CHECK_COLS = ['current_price', 'lag_1', 'lag_7', 'moving_avg_30', 'target_7d']
+FILL_METHODS = ('ffill', 'drop', 'interpolate')  # як обробляти святкові дні без ціни
 
 
-def build_features(prices, window_includes_current):
+def prepare_prices(raw, fill):
+    """Святкові дні в FRED приходять без ціни (NaN): заповнюємо або відкидаємо."""
+    s = raw.sort_index()
+    if fill == 'ffill':
+        s = s.ffill()
+    elif fill == 'interpolate':
+        s = s.interpolate()
+    return s.dropna()
+
+
+def build_features(s, window_includes_current):
     """Рахує ті самі фічі, що лежать у таблиці gas_prices_ml_7d."""
-    s = prices.sort_index()
     if window_includes_current:
         ma30 = s.rolling(30).mean()
     else:
@@ -47,25 +57,28 @@ def check_match(stored, feats):
     return True, ""
 
 
-def pick_convention(conn, prices):
-    """Підбирає спосіб розрахунку moving_avg_30, що збігається з існуючими даними."""
+def pick_convention(conn, raw):
+    """Підбирає спосіб розрахунку, що збігається з уже збереженими рядками."""
     stored = pd.read_sql_query(
         f"SELECT * FROM {TABLE} ORDER BY observation_date DESC LIMIT {CHECK_ROWS}", conn)
     if stored.empty:
         raise SystemExit(f"Таблиця {TABLE} порожня, нема з чим звірити розрахунок")
     problems = []
-    for includes in (True, False):
-        ok, msg = check_match(stored, build_features(prices, includes))
-        if ok:
-            return includes
-        problems.append(f"window_includes_current={includes}: {msg}")
+    for fill in FILL_METHODS:
+        s = prepare_prices(raw, fill)
+        for includes in (True, False):
+            ok, msg = check_match(stored, build_features(s, includes))
+            if ok:
+                return fill, includes
+            problems.append(f"fill={fill}, window_includes_current={includes}: {msg}")
     raise SystemExit(
         "Фічі не збігаються з тим, що вже є в базі. Дані НЕ записано.\n" + "\n".join(problems))
 
 
-def run(prices, conn):
-    includes = pick_convention(conn, prices)
-    feats = build_features(prices, includes)
+def run(raw, conn):
+    fill, includes = pick_convention(conn, raw)
+    print(f"Спосіб розрахунку: fill={fill}, window_includes_current={includes}")
+    feats = build_features(prepare_prices(raw, fill), includes)
 
     last = conn.execute(f"SELECT MAX(observation_date) FROM {TABLE}").fetchone()[0]
     last = str(last)[:10]
@@ -109,9 +122,9 @@ def update_gas_prices():
         raise ValueError("FRED_API_KEY environment variable not set!")
     from fredapi import Fred
     print("Fetching data from FRED API...")
-    prices = Fred(api_key=API_KEY).get_series('DHHNGSP').dropna()
+    raw = Fred(api_key=API_KEY).get_series('DHHNGSP')  # з NaN у святкові дні
     with sqlite3.connect(DB_PATH) as conn:
-        run(prices, conn)
+        run(raw, conn)
 
 
 if __name__ == "__main__":
