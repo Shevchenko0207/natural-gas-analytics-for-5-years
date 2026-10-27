@@ -9,7 +9,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), '../energy_data.db')
 TABLE = 'gas_prices_ml_7d'  # саме цю таблицю читає app.py
 CHECK_ROWS = 15             # скільки останніх рядків звіряємо перед записом
 TOL = 1e-3
-CHECK_COLS = ['current_price', 'lag_1', 'lag_7', 'moving_avg_30', 'target_7d']
+FEATURE_COLS = ['current_price', 'lag_1', 'lag_7', 'moving_avg_30']
 FILL_METHODS = ('ffill', 'drop', 'interpolate')  # як обробляти святкові дні без ціни
 
 
@@ -41,20 +41,39 @@ def build_features(s, window_includes_current):
     return df.set_index('observation_date', drop=False)
 
 
+def differs(stored_value, computed_value):
+    return pd.isna(computed_value) or abs(float(stored_value) - float(computed_value)) > TOL
+
+
 def check_match(stored, feats):
-    """Порівнює збережені рядки з перерахованими. Повертає (ok, опис розбіжності)."""
+    """Фічі мають збігатися повністю. target_7d залежить від майбутніх цін,
+    які FRED/EIA можуть переглядати, тому там допускаємо окремі розбіжності
+    (але не більше половини рядків).
+    Повертає (ok, опис розбіжності, список попереджень)."""
+    t_checked = 0
+    t_bad = 0
+    notes = []
     for _, row in stored.iterrows():
         key = str(row['observation_date'])[:10]
         if key not in feats.index:
-            return False, f"{key}: немає в даних FRED"
-        for col in CHECK_COLS:
+            return False, f"{key}: немає в даних FRED", []
+        for col in FEATURE_COLS:
             sv = row[col]
             if pd.isna(sv):
                 continue
             fv = feats.at[key, col]
-            if pd.isna(fv) or abs(float(sv) - float(fv)) > TOL:
-                return False, f"{key} {col}: в базі={sv}, пораховано={fv}"
-    return True, ""
+            if differs(sv, fv):
+                return False, f"{key} {col}: в базі={sv}, пораховано={fv}", []
+        sv = row['target_7d']
+        if pd.notna(sv):
+            t_checked += 1
+            fv = feats.at[key, 'target_7d']
+            if differs(sv, fv):
+                t_bad += 1
+                notes.append(f"{key} target_7d: в базі={sv}, зараз у FRED={fv}")
+    if t_checked and t_bad * 2 > t_checked:
+        return False, f"target_7d не збігається у {t_bad} з {t_checked} рядків: {notes[0]}", []
+    return True, "", notes
 
 
 def pick_convention(conn, raw):
@@ -67,17 +86,19 @@ def pick_convention(conn, raw):
     for fill in FILL_METHODS:
         s = prepare_prices(raw, fill)
         for includes in (True, False):
-            ok, msg = check_match(stored, build_features(s, includes))
+            ok, msg, notes = check_match(stored, build_features(s, includes))
             if ok:
-                return fill, includes
+                return fill, includes, notes
             problems.append(f"fill={fill}, window_includes_current={includes}: {msg}")
     raise SystemExit(
         "Фічі не збігаються з тим, що вже є в базі. Дані НЕ записано.\n" + "\n".join(problems))
 
 
 def run(raw, conn):
-    fill, includes = pick_convention(conn, raw)
+    fill, includes, notes = pick_convention(conn, raw)
     print(f"Спосіб розрахунку: fill={fill}, window_includes_current={includes}")
+    for n in notes:
+        print(f"Увага (ймовірно, перегляд даних FRED): {n}")
     feats = build_features(prepare_prices(raw, fill), includes)
 
     last = conn.execute(f"SELECT MAX(observation_date) FROM {TABLE}").fetchone()[0]
