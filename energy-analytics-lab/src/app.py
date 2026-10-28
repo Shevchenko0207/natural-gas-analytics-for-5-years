@@ -162,7 +162,6 @@ def main():
         st.markdown("---")
 
         # Chart
-        st.subheader("Market Trend and AI Projection")
 
         fig = create_forecast_plot(df, last_row, pred_7d)
 
